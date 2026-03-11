@@ -2,6 +2,7 @@ let overlay = true;
 let playing = "player";
 let difficulty = "Medium";
 let playFirst = "Random";
+let swapAfterGame = false;
 let previouslySelectedSquare = false;
 let turn = "white";
 let legalMoves = [];
@@ -21,16 +22,19 @@ let flipped = 1;
 let kingPositions = { white: "e1", black: "e8" };
 //updates where castling is possible for: white king side, white queen side, black king side, black queen side
 let ableToCastle = [true, true, true, true];
+const rookPositions = ["h1", "a1", "h8", "a8"];
 let flashes = 0;
 let promotionSquare;
 let pastPositions = [];
 pastPositions.push(currentPosition().toString());
 let fiftyMoveRule = 0;
 let endOfGame = false;
-const blur = document.querySelector(".blur");
+const blurEffect = document.querySelector(".blur-effect");
 
 //settings
 let coordinates = "outside";
+let startingTime = false;
+let increment = 0;
 
 //used to create dragging visuals
 const hoverPiece = document.querySelector(".hover-piece");
@@ -95,23 +99,82 @@ function firstUpdate(chosenFirst) {
 }
 
 function playGame() {
-  blur.style.display = "none";
-  blur.firstElementChild.style.display = "none";
-  blur.lastElementChild.style.display = "flex";
-  overlay = false;
-  if (playFirst == "Random") {
-    if (Math.random() < 0.5) {
-      playFirst = "white";
+  startingTime = document.getElementById("minute-value").value;
+  increment = document.getElementById("increment-value").value;
+
+  if (
+    startingTime &&
+    !isNaN(startingTime) &&
+    parseFloat(startingTime) > 0 &&
+    parseFloat(startingTime) < 300
+  ) {
+    startingTime = 60000 * parseFloat(startingTime);
+    if (increment) {
+      increment = 1000 * parseFloat(increment);
     } else {
-      playFirst = "black";
+      increment = 0;
     }
+    time1 = startingTime;
+    time2 = startingTime;
+
+    //hides blurEffect and swaps menu for end game screen
+    blurEffect.style.display = "none";
+    blurEffect.firstElementChild.style.display = "none";
+    blurEffect.lastElementChild.style.display = "flex";
+    overlay = false;
+    //resets endgame if it happens to be a rematch and swaps who's first if random first was chosen
+    endOfGame = false;
+    if (playing == "computer" && swapAfterGame) {
+      if (playFirst == "black") {
+        playFirst = "white";
+        if (flipped == -1) {
+          flipBoard();
+        }
+      } else {
+        playFirst = "black";
+      }
+    }
+    //if random first is chosen, a first is chosen at random
+    if (playFirst == "Random") {
+      swapAfterGame = true;
+      if (Math.random() < 0.5) {
+        playFirst = "white";
+      } else {
+        playFirst = "black";
+      }
+    }
+    //lowercases it
+    playFirst = playFirst.toLowerCase();
+    //flips board correct way round and starts game if player is starting as black
+    if (playFirst == "black" && playing == "computer") {
+      if (flipped == 1) {
+        flipBoard();
+      }
+      randomComputerMove();
+    }
+
+    //updates timer
+    updateDisplay();
+  } else {
+    minuteFlash();
   }
-  playFirst = playFirst.toLowerCase();
-  if (playFirst == "black" && playing == "computer") {
-    if (flipped == 1) {
-      flipBoard();
+}
+
+function minuteFlash() {
+  let minuteValue = document.getElementById("minute-value");
+  if (flashes < 7) {
+    if (flashes % 2 == 0) {
+      //off every other
+      minuteValue.dataset.effect = "";
+    } else {
+      //on if it's still in check
+      minuteValue.dataset.effect = "check";
     }
-    randomComputerMove();
+    flashes += 1;
+    //recursive
+    setTimeout(minuteFlash, 150);
+  } else {
+    flashes = 0;
   }
 }
 
@@ -262,6 +325,7 @@ function boardUpdates(currentSquare) {
 
 //changes whose move it is and UI
 function moveSwap() {
+  switchPlayerTimer();
   if (turn == "white") {
     turn = "black";
   } else {
@@ -285,15 +349,16 @@ function highlightSquares(currentSquare) {
     return;
   }
   //selected piece has legal moves so shows possible moves
-  currentSquare.style.boxShadow = "inset 0 0 10px 0";
+  currentSquare.dataset.effect = "selected";
   for (const move of legalMoves) {
     let highlight = document.getElementById(move[0] + move[1]);
     if (colourInSquare(highlight) != "empty" && move.length < 3) {
       // capture piece highlight
-      highlight.style.boxShadow = "inset 0 0 10px 0 #d11e1e";
+      highlight.dataset.effect = "capture";
+    } else{
+      //just dot
+      highlight.dataset.effect = "move";
     }
-    // dots
-    highlight.style.backgroundImage = "radial-gradient(#0007 20%, #0000 40%)";
   }
 }
 
@@ -303,8 +368,7 @@ function clearHighlights() {
     for (let j = 1; j < 9; j++) {
       let x = String.fromCharCode(97 + i);
       let clear = document.getElementById(x + j);
-      clear.style.backgroundImage = "none";
-      clear.style.boxShadow = "";
+      clear.dataset.effect = "";
       if (clear.innerHTML) {
         clear.firstElementChild.style.opacity = "1";
       }
@@ -314,20 +378,31 @@ function clearHighlights() {
     checkHighlight();
   }
   //adds the last move as faint highlights
-  if (movesPlayed.length > 0 && movesPlayed[movesPlayed.length - 1] != "flip") {
-    document.getElementById(
-      movesPlayed[movesPlayed.length - 1][0]
-    ).style.boxShadow = "#52bfedaa 0px 0px 25px inset";
-    document.getElementById(
-      movesPlayed[movesPlayed.length - 1][1]
-    ).style.boxShadow = "#52bfed 0px 0px 25px inset";
+  if (movesPlayed.length > 0) {
+    if (movesPlayed[movesPlayed.length - 1] == "flip") {
+      if (movesPlayed.length > 1) {
+        document.getElementById(
+          flipCoords(movesPlayed[movesPlayed.length - 2][0])
+        ).dataset.effect = "previous";
+        document.getElementById(
+          flipCoords(movesPlayed[movesPlayed.length - 2][1])
+        ).dataset.effect = "new";
+      }
+    } else {
+      document.getElementById(
+        movesPlayed[movesPlayed.length - 1][0]
+      ).dataset.effect = "previous";
+      document.getElementById(
+        movesPlayed[movesPlayed.length - 1][1]
+      ).dataset.effect = "new";
+    }
   }
 }
 
 // adds a check highlight
-function checkHighlight() {
-  document.getElementById(kingPositions[isChecked()]).style.boxShadow =
-    "inset 0 0 20px 0 #890F0F";
+function checkHighlight(king) {
+  if(!king) king = document.getElementById(kingPositions[isChecked()])
+  king.dataset.effect = "check";
 }
 
 // king flashes three times
@@ -339,12 +414,12 @@ function kingFlash() {
     if (flashes % 2 == 0) {
       //off every other
       if (king) {
-        king.style.boxShadow = "";
+        king.dataset.effect = "";
       }
     } else {
       //on if it's still in check
       if (isChecked()) {
-        checkHighlight();
+        checkHighlight(king);
       }
     }
     flashes += 1;
@@ -397,6 +472,7 @@ function promote(currentSquare) {
     (currentSquare.id[1] == 1 || currentSquare.id[1] == 8)
   ) {
     //slides the popup over
+    document.querySelector(".promotion-popup").style.opacity = "1";
     document.querySelector(".promotion-popup").style.transform = "none";
     promotionSquare = currentSquare.id;
     let promotionPieces = document.querySelectorAll(".promoteTo");
@@ -467,14 +543,16 @@ function endOfGameChecks(currentSquare) {
     if (!anyLegalMoves()) {
       endOfGame = true;
       console.log("Checkmated");
-      blur.style.display = "grid";
+      blurEffect.style.display = "grid";
+      clearInterval(displayInterval);
       // dragPickUp();
     }
   } else if (draw(currentSquare)) {
     console.log("Draw");
     endOfGame = true;
-    blur.lastElementChild.firstElementChild.innerHTML = "Draw";
-    blur.style.display = "grid";
+    blurEffect.lastElementChild.firstElementChild.innerHTML = "Draw";
+    blurEffect.style.display = "grid";
+    clearInterval(displayInterval);
     // dragPickUp();
   }
 }
@@ -619,7 +697,7 @@ function currentPosition() {
 
 // checks if the piece moved changes castling rights
 function updateCastlingRights(currentSquare) {
-  let old = ableToCastle;
+  let old = JSON.parse(JSON.stringify(ableToCastle));
   if (pieceInSquare(currentSquare) == "king") {
     if (colourInSquare(currentSquare) == "white") {
       ableToCastle[0] = false;
@@ -647,21 +725,32 @@ function updateCastlingRights(currentSquare) {
         ableToCastle[3] = false;
       }
     }
+  } else {
+    let coord = currentSquare.id;
+    if (flipped == -1) coord = flipCoords(coord);
+    if (rookPositions.indexOf(coord) != -1) {
+      ableToCastle[rookPositions.indexOf(coord)] = false;
+    }
   }
-
-  if (ableToCastle != old) {
-    movesPlayed.push(["castlingRights", old]);
+  if (JSON.stringify(ableToCastle) != JSON.stringify(old)) {
+    const move = movesPlayed.pop();
+    const newMove = move.concat(["castlingRights", old]);
+    movesPlayed.push(newMove);
   }
 }
 
 // checks for castling moves
 function findCastleMoves() {
+  let colourNumber = 0;
+  if (turn == "black") {
+    colourNumber = 2;
+  }
   let vectors = [];
   //checks each direction (0 = kingside, 1 = queenside) for castling rights and if the castle is possible/legal
   for (let i = 0; i < 2; i++) {
     let direction = 1 - 2 * i;
     if (
-      ableToCastle[0] &&
+      ableToCastle[colourNumber + i] &&
       castleChecker(kingPositions[turn], direction, i + 3)
     ) {
       for (let j = 2; j < i + 4; j++) {
@@ -1109,99 +1198,97 @@ function lastPawnMove() {
 }
 
 // undoes the most recent move
-function undo(fromReset) {
+function undo(fromReset, button) {
   //if no move has been played, no need to undo
   if (movesPlayed.length == 0) {
     return;
   }
+ 
 
   //removes en passant
   enPassant = 0;
+
   //get the last move
   let last = movesPlayed[movesPlayed.length - 1];
-  if (last[0] == "castlingRights") {
-    //if the last move is updating castling rights, revert them
-    ableToCastle[0] = last[1][0];
-    ableToCastle[1] = last[1][1];
-    ableToCastle[2] = last[1][2];
-    ableToCastle[3] = last[1][3];
-    movesPlayed.pop();
-    last = movesPlayed[movesPlayed.length - 1];
+
+  //little animation
+  if(button && !(movesPlayed.length == 1 && last == "flip")){
+    animateUndoButton(button);
   }
+
   //if the last move was a board flip
   if (last == "flip") {
     if (movesPlayed.length == 1) {
       //if it's the only move just clear it
       movesPlayed.pop();
     } else {
-      if (
-        movesPlayed[movesPlayed.length - 2] &&
-        movesPlayed[movesPlayed.length - 2] == "flip"
-      ) {
-        //if it'a two flips in a row they cancel
-        movesPlayed.pop();
-        movesPlayed.pop();
-        undo();
-      } else {
-        //flip board, undo move, un-flip board
-        flipBoard(true);
-        movesPlayed.pop();
-        undo();
-        flipBoard();
-      }
+      //flip board, undo move, un-flip board
+      flipBoard(true);
+      movesPlayed.pop();
+      undo();
+      flipBoard();
     }
-  } else {
-    //removes it as a previously played position, swaps visuals
-    pastPositions.pop();
-    let from = document.getElementById(last[0]);
-    let to = document.getElementById(last[1]);
-    from.innerHTML = to.innerHTML;
+    return;
+  }
+
+  if (last[3] == "castlingRights") {
+    //if the last move is updating castling rights, revert them
+    ableToCastle[0] = last[4][0];
+    ableToCastle[1] = last[4][1];
+    ableToCastle[2] = last[4][2];
+    ableToCastle[3] = last[4][3];
+  }
+
+  //removes it as a previously played position, swaps visuals
+  pastPositions.pop();
+  let from = document.getElementById(last[0]);
+  let to = document.getElementById(last[1]);
+  from.innerHTML = to.innerHTML;
+  to.innerHTML = last[2];
+  //reduces 50 move rule by 1 if it's more than 0
+  if (fiftyMoveRule > 0) {
+    fiftyMoveRule--;
+  }
+  //updates global king position if it was a king move
+  if (pieceInSquare(from) == "king") {
+    kingPositions[colourInSquare(from)] = from.id;
+  }
+  if (last[3] == "enPassant") {
+    //puts the enpassanted pawn back
+    to.innerHTML = "";
+    document.getElementById(last[4]).innerHTML = last[2];
+    enPassant = last[1];
+  } else if (last[3] == "promotion") {
+    //puts the promoted pawn back
     to.innerHTML = last[2];
-    //reduces 50 move rule by 1 if it's more than 0
-    if (fiftyMoveRule > 0) {
-      fiftyMoveRule--;
-    }
-    //updates global king position if it was a king move
-    if (pieceInSquare(from) == "king") {
-      kingPositions[colourInSquare(from)] = from.id;
-    }
-    if (last[3] == "enPassant") {
-      //puts the enpassanted pawn back
-      to.innerHTML = "";
-      document.getElementById(last[4]).innerHTML = last[2];
-      enPassant = last[1];
-    } else if (last[3] == "promotion") {
-      //puts the promoted pawn back
-      to.innerHTML = last[2];
-      from.innerHTML = last[4];
-    } else if (last[3] == "castle") {
-      //undoes a castle
-      to.innerHTML = "";
-      from = document.getElementById(last[4]);
-      to = document.getElementById(last[2]);
-      from.innerHTML = to.innerHTML;
-      to.innerHTML = "";
-    }
-    //removes move and checks for en passant
-    movesPlayed.pop();
-    checkForEnPassant();
-    previouslySelectedSquare = 0;
-    //swaps move if a promotion is not being chosen, gets rid of menu and promotion state if in the middle of choice
-    if (!promotionSquare) {
-      moveSwap();
+    from.innerHTML = last[4];
+  } else if (last[3] == "castle") {
+    //undoes a castle
+    to.innerHTML = "";
+    from = document.getElementById(last[4]);
+    to = document.getElementById(last[2]);
+    from.innerHTML = to.innerHTML;
+    to.innerHTML = "";
+  }
+  //removes move and checks for en passant
+  movesPlayed.pop();
+  checkForEnPassant();
+  previouslySelectedSquare = 0;
+  //swaps move if a promotion is not being chosen, gets rid of menu and promotion state if in the middle of choice
+  if (!promotionSquare) {
+    moveSwap();
+  } else {
+    document.querySelector(".promotion-popup").style.transform =
+      "translateX(110%)";
+    promotionSquare = false;
+  }
+  //clears highlights
+  clearHighlights();
+  if (playing == "computer" && turn != playFirst) {
+    if (movesPlayed.length < 2 && !fromReset) {
+      playGame();
     } else {
-      document.querySelector(".promotion-popup").style.transform =
-        "translateX(110%)";
-      promotionSquare = false;
-    }
-    //clears highlights
-    clearHighlights();
-    if (playing == "computer" && turn != playFirst) {
-      if (movesPlayed.length < 2 && !fromReset) {
-        playGame();
-      } else{
-        undo();
-      }
+      undo();
     }
   }
 }
@@ -1226,17 +1313,23 @@ function checkForEnPassant() {
 
 // resets the board
 function reset() {
+  console.log("flag wave somehow")
   while (movesPlayed.length > 0) {
     undo(true);
   }
+  resetClock();
   playGame();
 }
 
 //flips the board
-function flipBoard(add) {
+function flipBoard(add, button) {
+  if(button) {
+    animateFlipBoard(button);
+  }
   //some board flips don't need to be saved (when undoing)
   if (!add) {
-    movesPlayed.push("flip");
+    if (movesPlayed[movesPlayed.length - 1] == "flip") movesPlayed.pop();
+    else movesPlayed.push("flip");
   }
   //flips specific square values that are saved
   kingPositions = {
@@ -1283,6 +1376,134 @@ function flipBoard(add) {
 function flipCoords(coord) {
   return String.fromCharCode(201 - coord.charCodeAt(0)) + (9 - coord[1]);
 }
+
+//---------------------------------------------------------------------
+//---------------------------------------------------------------------
+//-----------------------------Clock Logic-----------------------------
+//---------------------------------------------------------------------
+//---------------------------------------------------------------------
+
+let time1 = startingTime;
+let time2 = startingTime;
+let lastSwitchTime = null;
+let displayInterval = null;
+let started = 0;
+
+function formatTime(ms) {
+  const totalSeconds = Math.round(ms / 1000);
+  const min = Math.floor(totalSeconds / 60).toString();
+  const sec = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${min}:${sec}`;
+}
+
+function updateDisplay() {
+  document.getElementById("time1").textContent = formatTime(time1);
+  document.getElementById("time2").textContent = formatTime(time2);
+}
+
+function startDisplayUpdates() {
+  if (displayInterval) clearInterval(displayInterval);
+
+  displayInterval = setInterval(() => {
+    const now = performance.now();
+    const elapsed = now - lastSwitchTime;
+    if (turn == "white") {
+      document.getElementById("time1").textContent = formatTime(
+        time1 - elapsed
+      );
+      if (time1 - elapsed <= 0) {
+        time1 = 0;
+        resetClock(true);
+        return;
+      }
+    } else {
+      document.getElementById("time2").textContent = formatTime(
+        time2 - elapsed
+      );
+      if (time2 - elapsed <= 0) {
+        time1 = 0;
+        resetClock(true);
+        return;
+      }
+    }
+  }, 1000);
+}
+
+function switchPlayerTimer() {
+  if (started == 0) {
+    started++;
+    return;
+  }
+  if (started == 1) {
+    started++;
+    lastSwitchTime = performance.now();
+    updateDisplay();
+    startDisplayUpdates();
+    return;
+  }
+  const now = performance.now();
+  const elapsed = now - lastSwitchTime;
+  lastSwitchTime = now;
+
+  if (turn === "white") {
+    time1 -= elapsed;
+    time1 += increment;
+    if (time1 <= 0) {
+      time1 = 0;
+      resetClock(true);
+      return;
+    }
+  } else {
+    time2 -= elapsed;
+    time2 += increment;
+    if (time2 <= 0) {
+      time2 = 0;
+      resetClock(true);
+      return;
+    }
+  }
+
+  updateDisplay(); // Ensure display syncs immediately after switching
+}
+
+function resetClock(timeOut) {
+  clearInterval(displayInterval);
+  if (timeOut) {
+    endOfGame = true;
+    console.log("Time Out");
+    blurEffect.lastElementChild.firstElementChild.innerHTML = "Time Out";
+    blurEffect.style.display = "grid";
+  } else {
+    time1 = startingTime;
+    time2 = startingTime;
+    lastSwitchTime = null;
+    started = 0;
+    updateDisplay();
+  }
+}
+
+
+//---------------------------------------------------------------------
+//---------------------------------------------------------------------
+//--------------------------Micro Interactions-------------------------
+//---------------------------------------------------------------------
+//---------------------------------------------------------------------
+
+function animateUndoButton(button){
+  addAnimation(button, 'flick');
+}
+
+function animateFlipBoard(button){
+  addAnimation(button, 'flip');
+}
+
+function addAnimation(button, animation) {
+  let el = button.firstElementChild;
+  el.classList.remove(animation);
+  void button.offsetWidth;
+  el.classList.add(animation);
+}
+
 
 //TODO:
 // piece/point counting

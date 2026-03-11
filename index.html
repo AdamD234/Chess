@@ -3,20 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chess</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>SimpliChess</title>
+    <link rel="stylesheet" href="style.css"/>
     <script src="script.js" defer></script>
+    <link rel="shortcut icon" href="Icon.ico" type="image/x-icon">
   </head>
 
   <!-- Chess pieces and icons from the codepen assets library -->
   <body onmousedown="press(event,true)" onmouseup="press(event,false)">
-    <div class="blur">
+    <div class="blur-effect">
       <div class="menu no-computer">
-        <h1>Chess logo here</h1>
+        <img class="logo" src="Logo.svg" alt="SimpliChess">
         <div class="time">
           <img src="clock.svg" alt="" />
-          <input type="number" placeholder="Minutes" name="min" />
-          <input type="number" placeholder="Increment" name="inc" />
+          <input id="minute-value" type="number" placeholder="Minutes" name="min" />
+          <input id="increment-value" type="number" placeholder="Increment" name="inc" />
         </div>
         <div class="against">
           <p class="label">Play against</p>
@@ -83,7 +84,7 @@
           </a>
         </div>
         <div class="first computer-only">
-          <p class="label">Play as</p>
+          <p class="label extra-padding">Play as</p>
           <div class="hidden"></div>
           <a href="#0" onclick="firstUpdate(this)">
             <svg class="white" viewBox="-12 -16 472 540">
@@ -122,12 +123,13 @@
           value="Play now!"
           name="play"
           class="play"
+          title="Pick time control"
           onclick="playGame()"
         />
       </div>
       <div class="menu end-of-game">
         <h2>Checkmate</h2>
-        <span title="Play again" onclick="reset()" class="button-icon">
+        <span title="Play again" onclick="reset()" class="button-icon limit-size">
           <svg viewBox="0 0 512 512" title="undo-alt">
             <path
               d="M255.545 8c-66.269.119-126.438 26.233-170.86 68.685L48.971 40.971C33.851 25.851 8 36.559 8 57.941V192c0 13.255 10.745 24 24 24h134.059c21.382 0 32.09-25.851 16.971-40.971l-41.75-41.75c30.864-28.899 70.801-44.907 113.23-45.273 92.398-.798 170.283 73.977 169.484 169.442C423.236 348.009 349.816 424 256 424c-41.127 0-79.997-14.678-110.63-41.556-4.743-4.161-11.906-3.908-16.368.553L89.34 422.659c-4.872 4.872-4.631 12.815.482 17.433C133.798 479.813 192.074 504 256 504c136.966 0 247.999-111.033 248-247.998C504.001 119.193 392.354 7.755 255.545 8z"
@@ -448,12 +450,11 @@
         <p class="turn turn--white current">White</p>
         <p class="turn turn--black">Black</p>
         <div class="clock">
-          <p>00:00</p>
-          <p>00:00</p>
-          <p>(timer not done yet)</p>
+          <p id="time1">00:00</p>
+          <p id="time2">00:00</p>
         </div>
         <div class="empty"></div>
-        <span title="Undo Move" onclick="undo()" class="button-icon">
+        <span title="Undo Move" onclick="undo(false, this)" class="button-icon">
           <svg viewBox="0 0 512 512" title="undo-alt">
             <path
               d="M255.545 8c-66.269.119-126.438 26.233-170.86 68.685L48.971 40.971C33.851 25.851 8 36.559 8 57.941V192c0 13.255 10.745 24 24 24h134.059c21.382 0 32.09-25.851 16.971-40.971l-41.75-41.75c30.864-28.899 70.801-44.907 113.23-45.273 92.398-.798 170.283 73.977 169.484 169.442C423.236 348.009 349.816 424 256 424c-41.127 0-79.997-14.678-110.63-41.556-4.743-4.161-11.906-3.908-16.368.553L89.34 422.659c-4.872 4.872-4.631 12.815.482 17.433C133.798 479.813 192.074 504 256 504c136.966 0 247.999-111.033 248-247.998C504.001 119.193 392.354 7.755 255.545 8z"
@@ -470,8 +471,8 @@
         </span>
         <div class="empty"></div>
         <div class="empty"></div>
-        <span title="Flip Board" onclick="flipBoard()" class="button-icon">
-          <svg viewBox="0 0 512 512" title="sync-alt">
+        <span title="Flip Board" onclick="flipBoard(false, this)" class="button-icon">
+          <svg class="mirror" viewBox="0 0 512 512" title="sync-alt">
             <path
               d="M370.72 133.28C339.458 104.008 298.888 87.962 255.848 88c-77.458.068-144.328 53.178-162.791 126.85-1.344 5.363-6.122 9.15-11.651 9.15H24.103c-7.498 0-13.194-6.807-11.807-14.176C33.933 94.924 134.813 8 256 8c66.448 0 126.791 26.136 171.315 68.685L463.03 40.97C478.149 25.851 504 36.559 504 57.941V192c0 13.255-10.745 24-24 24H345.941c-21.382 0-32.09-25.851-16.971-40.971l41.75-41.749zM32 296h134.059c21.382 0 32.09 25.851 16.971 40.971l-41.75 41.75c31.262 29.273 71.835 45.319 114.876 45.28 77.418-.07 144.315-53.144 162.787-126.849 1.344-5.363 6.122-9.15 11.651-9.15h57.304c7.498 0 13.194 6.807 11.807 14.176C478.067 417.076 377.187 504 256 504c-66.448 0-126.791-26.136-171.315-68.685L48.97 471.03C33.851 486.149 8 475.441 8 454.059V320c0-13.255 10.745-24 24-24z"
             />

@@ -150,7 +150,8 @@ function playGame() {
       if (flipped == 1) {
         flipBoard();
       }
-      randomComputerMove();
+
+      computerMove();
     }
 
     //updates timer
@@ -319,7 +320,7 @@ function boardUpdates(currentSquare) {
   previouslySelectedSquare = false;
 
   if (playing == "computer" && turn != playFirst) {
-    randomComputerMove();
+    computerMove();
   }
 }
 
@@ -1129,6 +1130,16 @@ function vectorToSquare(currentSquare, vector) {
 //---------------------------------------------------------------------
 //---------------------------------------------------------------------
 
+
+function computerMove() {
+  if(difficulty == "Random"){
+    randomComputerMove();
+  } else {
+    easyComputerMove();
+  }
+}
+
+
 function randomComputerMove() {
   if (!endOfGame) {
     let pieces = document.querySelectorAll("table svg." + turn);
@@ -1142,6 +1153,106 @@ function randomComputerMove() {
     previouslySelectedSquare = pieceSquare;
     let move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
     let moveSquare = document.getElementById(move[0] + move[1]);
+    console.log(moveSquare)
+    Move(moveSquare);
+  }
+}
+
+// helper: piece value used for capture scoring
+function pieceValue(pieceName) {
+  switch (pieceName) {
+    case "pawn": return 1;
+    case "knight": return 3;
+    case "bishop": return 3;
+    case "rook": return 5;
+    case "queen": return 9;
+    case "king": return 1000;
+    default: return 0;
+  }
+}
+
+
+function getMoveScore(move) {
+  let score = 0;
+  const targetId = move.slice(0, 2);
+  const fromId = previouslySelectedSquare.id;
+
+  // Bonus for captures
+  const targetPiece = pieceInSquare(targetId);
+  const targetColour = colourInSquare(targetId);
+  if (targetPiece != "empty" && targetColour && targetColour != turn) {
+    score += 100 * pieceValue(targetPiece);
+  }
+
+  // Bonus for promoting
+  if (pieceInSquare(fromId) == "pawn" && (targetId[1] == "1" || targetId[1] == "8")) {
+    score += 250; 
+  }
+
+  // Prefer central squares slightly
+  const centerSquares = ["d4","e4","d5","e5"];
+  if (centerSquares.includes(targetId)) score += 8;
+
+  // Prefer giving check
+  const fromEl = document.getElementById(fromId);
+  const toEl = document.getElementById(targetId);
+  const saveFrom = fromEl.innerHTML;
+  const saveTo = toEl.innerHTML;
+  let saveKingState = null;
+  if (pieceInSquare(fromEl) == "king") {
+    saveKingState = kingPositions["white"] + kingPositions["black"];
+    kingPositions[turn] = targetId;
+  }
+
+  toEl.innerHTML = fromEl.innerHTML;
+  fromEl.innerHTML = "";
+
+  const opponent = turn == "white" ? "black" : "white";
+  if (isChecked() == opponent || isChecked() == "both") {
+    score += 150; 
+  }
+
+  // undo move
+  fromEl.innerHTML = saveFrom;
+  toEl.innerHTML = saveTo;
+  if (saveKingState) {
+    kingPositions["white"] = saveKingState[0] + saveKingState[1];
+    kingPositions["black"] = saveKingState[2] + saveKingState[3];
+  }
+
+  // small random factor to avoid ties
+  score += Math.random() * 6;
+
+  return score;
+}
+
+function easyComputerMove() {
+  if (!endOfGame) {
+
+    let pieces = Array.from(document.querySelectorAll("table svg." + turn));
+
+    
+    let candidates = [];
+    for (const piece of pieces) {
+      const pieceSquare = piece.parentElement;
+      previouslySelectedSquare = pieceSquare;
+      highlightSquares(pieceSquare);
+
+      if (!legalMoves || legalMoves.length == 0) continue;
+
+      for (const move of legalMoves) {
+        const score = getMoveScore(move);
+        candidates.push({ from: pieceSquare, move, score });
+      }
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    const choice = candidates[0];
+
+    // perform the chosen move
+    highlightSquares(choice.from);
+    previouslySelectedSquare = choice.from;
+    let moveSquare = document.getElementById(choice.move.slice(0,2));
     Move(moveSquare);
   }
 }
@@ -1183,7 +1294,7 @@ function promoteTo(sq) {
   //ends move
   previouslySelectedSquare = false;
   if (playing == "computer" && turn != playFirst) {
-    randomComputerMove();
+    computerMove();
   }
   return true;
 }
@@ -1507,6 +1618,5 @@ function addAnimation(button, animation) {
 
 //TODO:
 // piece/point counting
-// timer
-// ui
+// Allow bot to promote
 // settings - flip each move, highlight moves, show coords (inside/outside), drag pieces
